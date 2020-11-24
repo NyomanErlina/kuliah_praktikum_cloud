@@ -9,11 +9,18 @@ import sqlite3
 
 ### CHAPTER 3
 from flask import render_template
+from flask import session, redirect, url_for
+from flask_cors import CORS, cross_origin
 
+import flask
 
 ###
 
 app = Flask(__name__)
+
+CORS(app)
+
+app.secret_key = 'F12Zr47j\3yX R~X@H!jmM]Lwf/,?KT'
 
 #INFO API
 @app.route("/api/v1/info")
@@ -282,7 +289,9 @@ def invalid_request(error):
     return make_response(jsonify({'error': 'Bad Request'}), 400)
 
 
-### CHAPTER 3
+
+### ----- CHAPTER 3 -----
+
 @app.route('/adduser')
 def adduser():
     return render_template('adduser.html')
@@ -292,6 +301,40 @@ def adduser():
 def addtweetjs():
     return render_template('addtweets.html')
 
+
+@app.route('/')
+def main():
+    return render_template('main.html')
+
+
+@app.route('/addname')
+def addname():
+  if request.args.get('yourname'):
+    session['name'] = request.args.get('yourname')
+    # And then redirect the user to the main page
+    return redirect(url_for('main'))
+  else:
+    # If no name has been sent, show the form
+    return render_template('addname.html', session=session)
+
+
+@app.route('/clear')
+def clearsession():
+    # Clear the session
+    session.clear()
+    # Redirect the user to the main page
+    return redirect(url_for('main'))
+
+
+@app.route('/set_cookie')
+def cookie_insertion():
+    redirect_to_main = redirect('/')
+    response = current_app.make_response(redirect_to_main)
+    response.set_cookie('cookie_name', value='values')
+    return response
+
+# masih error :
+# cookie = flask.request.cookies.get('my_cookie')
 
 
 
