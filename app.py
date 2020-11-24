@@ -7,6 +7,12 @@ from time import gmtime, strftime
 import json
 import sqlite3
 
+### CHAPTER 3
+from flask import render_template
+
+
+###
+
 app = Flask(__name__)
 
 #INFO API
@@ -274,6 +280,17 @@ def user_found(error):
 @app.errorhandler(400)
 def invalid_request(error):
     return make_response(jsonify({'error': 'Bad Request'}), 400)
+
+
+### CHAPTER 3
+@app.route('/adduser')
+def adduser():
+    return render_template('adduser.html')
+
+
+@app.route('/addtweets')
+def addtweetjs():
+    return render_template('addtweets.html')
 
 
 
