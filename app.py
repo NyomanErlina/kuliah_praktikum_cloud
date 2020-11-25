@@ -11,6 +11,7 @@ import sqlite3
 from flask import render_template
 from flask import session, redirect, url_for
 from flask_cors import CORS, cross_origin
+from flask import current_app
 
 import flask
 
@@ -21,6 +22,8 @@ app = Flask(__name__)
 CORS(app)
 
 app.secret_key = 'F12Zr47j\3yX R~X@H!jmM]Lwf/,?KT'
+
+app.config.from_object(__name__)
 
 #INFO API
 @app.route("/api/v1/info")
@@ -330,12 +333,15 @@ def clearsession():
 def cookie_insertion():
     redirect_to_main = redirect('/')
     response = current_app.make_response(redirect_to_main)
-    response.set_cookie('cookie_name', value='values')
+    response.set_cookie('my_cookie', value=session['name'])
     return response
 
-# masih error :
-# cookie = flask.request.cookies.get('my_cookie')
+# dari modul error :
+#cookie = flask.request.cookies.get('my_cookie')
 
+@app.route('/read_cookie')
+def get_cookie():
+    return flask.request.cookies.get('my_cookie')
 
 
 if __name__ == "__main__":
