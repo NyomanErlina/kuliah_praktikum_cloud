@@ -1,28 +1,16 @@
-from flask import Flask, jsonify
-from flask import abort
-from flask import make_response
-from flask import request
-from time import gmtime, strftime
-import json
-import sqlite3
-
-### CHAPTER 3
-from flask import render_template
-from flask import session, redirect, url_for
+from flask import Flask, jsonify, abort, make_response, request, flash
+from flask import render_template, session, redirect, url_for, current_app
 from flask_cors import CORS, cross_origin
-from flask import current_app
-import flask
-
-
-### CHAPTER 4
+from time import gmtime, strftime
 from pymongo import MongoClient
-import random 
+import sqlite3, random, flask, json, bcrypt
 
 
 # Object creation
 app = Flask(__name__)
 app.secret_key = 'F12Zr47j\3yX R~X@H!jmM]Lwf/,?KT'
 app.config.from_object(__name__)
+app.template_folder = 'templates'
 CORS(app)
 
 # connection to MongoDB Database
@@ -72,6 +60,107 @@ def create_mongodatabase():
         print ("Database creation failed!!")
 
 
+#chapter 5
+@app.route('/')
+def home():
+    if not session.get('logged_in'):
+        return render_template('login.html')
+    else:
+        return render_template('index.html', session = session['username'])
+   
+
+@app.route('/index')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/login', methods=['POST'])
+def do_admin_login():
+    users = connection.cloud_native.users
+    api_list=[]
+    login_user = users.find({'username': request.form['username']})
+    for i in login_user:
+        api_list.append(i)
+    print (api_list)
+    if api_list != []:
+        # print (api_list[0]['password'].decode('utf-8'), bcrypt.hashpw(request.form['password'].encode('utf-8'), api_list[0]['password']).decode('utf-8'))
+        if api_list[0]['password'].decode('utf-8') == bcrypt.hashpw(request.form['password'].encode('utf-8'), api_list[0]['password']).decode('utf-8'):
+            session['username'] = api_list[0]['username']
+            session['logged_in'] = True
+            return redirect(url_for('home'))
+        return 'Invalide username/password!'
+    else:
+        flash("Invalid Authentication")
+        return 'Invalid User!'
+
+    
+
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    if request.method=='POST':
+        users = connection.cloud_native.users
+        api_list=[]
+        existing_user = users.find({'$or':[{"username":request.form['username']} ,{"email":request.form['email']}]})
+        for i in existing_user:
+            # print (str(i))
+            api_list.append(str(i))
+
+        # print (api_list)
+        if api_list == []:
+            users.insert({
+            "email": request.form['email'],
+            "id": random.randint(1,1000),
+            "name": request.form['name'],
+            "password": bcrypt.hashpw(request.form['pass'].encode('utf-8'), bcrypt.gensalt()),
+            "username": request.form['username']
+            })
+            session['username'] = request.form['username']
+            return redirect(url_for('home'))
+
+        return 'That user already exists'
+    else :
+        return render_template('signup.html')
+
+
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if request.method=='POST':
+        users = connection.cloud_native.users
+        api_list=[]
+        existing_users = users.find({"username":session['username']})
+        for i in existing_users:
+            # print (str(i))
+            api_list.append(str(i))
+        user = {}
+        print (api_list)
+        if api_list != []:
+            print (request.form['email'])
+            user['email']=request.form['email']
+            user['name']= request.form['name']
+            user['password']=request.form['pass']
+            users.update({'username':session['username']},{'$set': user} )
+        else:
+            return 'User not found!'
+        return redirect(url_for('home'))
+    if request.method=='GET':
+        users = connection.cloud_native.users
+        user=[]
+        print (session['username'])
+        existing_user = users.find({"username":session['username']})
+        for i in existing_user:
+            user.append(i)
+        return render_template('profile.html', name=user[0]['name'], username=user[0]['username'], password=user[0]['password'], email=user[0]['email'])
+
+
+@app.route("/logout")
+def logout():
+    session['logged_in'] = False
+    return redirect(url_for('home'))
+
+
+
 
 #MODIFY INFO API (CHAPTER 4)
 @app.route("/api/v1/info")
@@ -81,7 +170,6 @@ def home_index():
     for row in db.find():
         api_list.append(str(row))
     return jsonify({'api_version': api_list}), 200
-
 
 
 #GET USERS
@@ -217,47 +305,34 @@ def get_tweets():
 # List tweets
 def list_tweets():
     api_list=[]
+    dict = {}
     db = connection.cloud_native.tweets
     for row in db.find():
-        api_list.append(str(row))
+        dict = {}
+        dict['id'] = row['id']
+        dict['timestamp'] = row['timestamp']
+        dict['tweetedby'] = row['tweetedby']
+        dict['body']      = row['body']
+        api_list.append(dict)
     # print (api_list)
-    return jsonify({'tweets_list': api_list})
-
-
-
-
-#GET TWEETS BY ID USER
-@app.route('/api/v2/tweets/<int:id>', methods=['GET'])
-def get_tweet(id):
-    return list_tweet(id)
-
-
-# List specific tweet
-def list_tweet(user_id):
-    print (user_id)
-    db = connection.cloud_native.tweets
-    api_list=[]
-    tweet = db.find({'id':user_id})
-    for i in tweet:
-        api_list.append(str(i))
-    if api_list == []:
-        abort(404)
-    return jsonify({'tweet': api_list})
-
+    return json.dumps(api_list)
 
 
 #POST TWEETS
+
 @app.route('/api/v2/tweets', methods=['POST'])
 def add_tweets():
     user_tweet = {}
-    if not request.json or not 'username' in request.json or not 'body' in request.json:
+    if not 'body' in request.json:
         abort(400)
-    user_tweet['tweetedby'] = request.json['username']
-    user_tweet['body'] = request.json['body']
-    user_tweet['timestamp']=strftime("%Y-%m-%dT%H:%M:%SZ", gmtime())
-    user_tweet['id'] = random.randint(1,1000)
+    user_tweet = {
+        'body': request.json['body'],
+        'timestamp':strftime("%Y-%m-%dT%H:%M:%SZ", gmtime()),
+        'tweetedby':session['username'],
+        'id':random.randint(1,1000)
+    } 
 
-    return  jsonify({'status': add_tweet(user_tweet)}), 201
+    return jsonify({'status': add_tweet(user_tweet)})
 
 
 # Adding tweets
@@ -273,10 +348,26 @@ def add_tweet(new_tweet):
     if api_list == []:
        abort(404)
     else:
-        db_tweet.insert(new_tweet)
+        db_tweet.insert_one(new_tweet)
         return "Success"
 
+#GET TWEETS BY ID USER
+@app.route('/api/v2/tweets/<int:id>', methods=['GET'])
+def get_tweet(id):
+    return list_tweet(id)
 
+
+# List specific tweet
+def list_tweet(user_id):
+    print (user_id)
+    db = connection.cloud_native.tweets
+    api_list=[]
+    tweet = db.find({'id':id})
+    for i in tweet:
+        api_list.append(str(i))
+    if api_list == []:
+        abort(404)
+    return jsonify({'tweet': api_list})
 
 
 #untuk error handling
@@ -304,11 +395,6 @@ def adduser():
 @app.route('/addtweets')
 def addtweetjs():
     return render_template('addtweets.html')
-
-
-@app.route('/')
-def main():
-    return render_template('main.html')
 
 
 @app.route('/addname')
@@ -343,6 +429,7 @@ def cookie_insertion():
 @app.route('/read_cookie')
 def get_cookie():
     return flask.request.cookies.get('my_cookie')
+
 
 
 
