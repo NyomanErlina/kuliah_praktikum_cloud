@@ -71,7 +71,7 @@ def home():
 
 @app.route('/index')
 def index():
-    return render_template('index.html')
+    return render_template('index.html', session = session['username'])
 
 
 @app.route('/login', methods=['POST'])
@@ -106,7 +106,7 @@ def signup():
             # print (str(i))
             api_list.append(str(i))
 
-        # print (api_list)
+        print (api_list)
         if api_list == []:
             users.insert({
             "email": request.form['email'],
@@ -359,7 +359,7 @@ def get_tweet(id):
 
 # List specific tweet
 def list_tweet(user_id):
-    print (user_id)
+    #print (user_id)
     db = connection.cloud_native.tweets
     api_list=[]
     tweet = db.find({'id':id})
@@ -367,7 +367,8 @@ def list_tweet(user_id):
         api_list.append(str(i))
     if api_list == []:
         abort(404)
-    return jsonify({'tweet': api_list})
+    else:
+        return jsonify({'tweets_list': api_list})
 
 
 #untuk error handling
